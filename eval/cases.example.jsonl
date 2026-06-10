@@ -1,0 +1,4 @@
+# Example labeled retrieval set. Replace the hashes with content_hash values
+# from your own corpus (sha256 of the memory content).
+{"query": "how does the deploy pipeline gate releases", "relevant": ["<sha256-of-relevant-memory>"]}
+{"query": "what limits gpu memory bandwidth", "relevant": ["<sha256-of-relevant-memory>", "<another>"]}
