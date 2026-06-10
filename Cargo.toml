@@ -1,0 +1,36 @@
+[package]
+name = "mindvault"
+version = "0.1.0"
+edition = "2021"
+description = "RAG + knowledge-graph memory engine on PostgreSQL/pgvector: hybrid semantic + keyword recall with RRF fusion, graph-neighbor boosting, time decay, and a built-in retrieval eval harness."
+license = "MIT"
+repository = "https://github.com/SA-Ark/mindvault"
+keywords = ["rag", "pgvector", "knowledge-graph", "memory", "retrieval"]
+categories = ["database", "science"]
+
+[lib]
+name = "mindvault"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mindvault-eval"
+path = "src/bin/eval.rs"
+
+[dependencies]
+async-trait = "0.1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono"] }
+pgvector = { version = "=0.4.1", features = ["sqlx"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+chrono = "0.4"
+anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+# integration tests run against a real PostgreSQL+pgvector when
+# MINDVAULT_TEST_DATABASE_URL is set (CI provides a service container)
+
+[profile.release]
+lto = true
