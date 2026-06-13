@@ -7,9 +7,9 @@
 **RAG + knowledge-graph memory engine on PostgreSQL/pgvector — hybrid recall that is measured, not vibed.**
 
 MindVault is the packaged core of a production memory system that serves **68,000+ memories** with hybrid
-semantic + keyword recall at **sub-2-second** end-to-end latency. It treats retrieval quality as an
-engineering discipline: the recall pipeline is staged and explainable, every scoring constant earns its
-place, and the repo ships the **evaluation harness** used to prove changes help before they ship.
+semantic + keyword recall. It treats retrieval quality as an engineering discipline: the recall pipeline is
+staged and explainable, every scoring constant earns its place, and the repo ships the **evaluation
+harness** used to prove changes help before they ship.
 
 ## The recall pipeline
 
@@ -85,7 +85,6 @@ Measured on this repo's `examples/bench.rs` (Intel i7-13700H, PostgreSQL 17 + pg
 | Metric | Result |
 |---|---|
 | Hybrid recall p50 / p95 (10,000 memories, k=10, full 6-stage pipeline, exact scan) | **19.4 ms / 25.2 ms** |
-| Production deployment scale (source system) | 68,000+ memories, < 2 s end-to-end including embedding round-trip |
 | Pg integration suite (5 end-to-end scenarios) | 0.24 s |
 
 The 10K benchmark runs **without** an HNSW index (exact cosine scan) — add
