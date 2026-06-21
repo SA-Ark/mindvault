@@ -304,6 +304,168 @@ impl MemoryStore {
     pub fn now() -> DateTime<Utc> {
         Utc::now()
     }
+
+    // ---- listing / graph export (read paths used by the HTTP API & demo UI) ----
+
+    /// Most recently created live memories, newest first.
+    pub async fn recent(&self, limit: usize) -> Result<Vec<Memory>> {
+        let rows = sqlx::query(&format!(
+            "SELECT {MEMORY_COLS} FROM memories m \
+             WHERE m.deleted_at IS NULL \
+             ORDER BY m.created_at DESC, m.id DESC \
+             LIMIT $1"
+        ))
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.iter().map(row_to_memory).collect())
+    }
+
+    /// Distinct memory types currently present, with counts.
+    pub async fn type_counts(&self) -> Result<Vec<(String, i64)>> {
+        let rows = sqlx::query(
+            "SELECT coalesce(memory_type, 'untyped') AS t, count(*) AS n \
+             FROM memories WHERE deleted_at IS NULL \
+             GROUP BY t ORDER BY n DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|r| (r.get::<String, _>("t"), r.get::<i64, _>("n")))
+            .collect())
+    }
+
+    /// All memory-to-memory edges (for graph visualisation).
+    pub async fn all_edges(&self) -> Result<Vec<(i64, i64, f64, String)>> {
+        let rows = sqlx::query(
+            "SELECT e.source_id, e.target_id, e.weight, e.edge_type \
+             FROM memory_edges e \
+             JOIN memories s ON s.id = e.source_id AND s.deleted_at IS NULL \
+             JOIN memories t ON t.id = e.target_id AND t.deleted_at IS NULL",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|r| {
+                (
+                    r.get::<i64, _>("source_id"),
+                    r.get::<i64, _>("target_id"),
+                    r.get::<f64, _>("weight"),
+                    r.get::<String, _>("edge_type"),
+                )
+            })
+            .collect())
+    }
+
+    // ---- knowledge-graph entities & relations ----
+
+    /// Upsert a KG entity (by name+context). Returns its id.
+    pub async fn upsert_entity(
+        &self,
+        name: &str,
+        entity_type: Option<&str>,
+        observations: &[String],
+        importance: f64,
+    ) -> Result<i64> {
+        let row = sqlx::query(
+            "INSERT INTO kg_entities (name, entity_type, observations, importance) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (name, context) DO UPDATE \
+                 SET entity_type = EXCLUDED.entity_type, \
+                     observations = EXCLUDED.observations, \
+                     importance = EXCLUDED.importance, \
+                     deleted_at = NULL \
+             RETURNING id",
+        )
+        .bind(name)
+        .bind(entity_type)
+        .bind(observations)
+        .bind(importance)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.get("id"))
+    }
+
+    /// Link a KG entity to a memory (idempotent).
+    pub async fn link_entity_memory(&self, entity_id: i64, memory_id: i64) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO kg_entity_memories (entity_id, memory_id) VALUES ($1, $2) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(entity_id)
+        .bind(memory_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Create a typed relation between two entities (idempotent).
+    pub async fn relate_entities(
+        &self,
+        from_entity: i64,
+        to_entity: i64,
+        relation_type: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO kg_relations (from_entity, to_entity, relation_type) \
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        )
+        .bind(from_entity)
+        .bind(to_entity)
+        .bind(relation_type)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// All live KG entities: (id, name, entity_type, observation_count).
+    pub async fn all_entities(&self) -> Result<Vec<(i64, String, Option<String>, i64)>> {
+        let rows = sqlx::query(
+            "SELECT id, name, entity_type, coalesce(array_length(observations, 1), 0) AS obs \
+             FROM kg_entities WHERE deleted_at IS NULL ORDER BY importance DESC, id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|r| {
+                (
+                    r.get::<i64, _>("id"),
+                    r.get::<String, _>("name"),
+                    r.get::<Option<String>, _>("entity_type"),
+                    r.get::<i32, _>("obs") as i64,
+                )
+            })
+            .collect())
+    }
+
+    /// All KG relations: (from_entity, to_entity, relation_type).
+    pub async fn all_relations(&self) -> Result<Vec<(i64, i64, String)>> {
+        let rows = sqlx::query("SELECT from_entity, to_entity, relation_type FROM kg_relations")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows
+            .iter()
+            .map(|r| {
+                (
+                    r.get::<i64, _>("from_entity"),
+                    r.get::<i64, _>("to_entity"),
+                    r.get::<String, _>("relation_type"),
+                )
+            })
+            .collect())
+    }
+
+    /// Entity ids linked to a given memory (for graph overlay).
+    pub async fn entities_for_memory(&self, memory_id: i64) -> Result<Vec<i64>> {
+        let rows = sqlx::query("SELECT entity_id FROM kg_entity_memories WHERE memory_id = $1")
+            .bind(memory_id)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows.iter().map(|r| r.get::<i64, _>("entity_id")).collect())
+    }
 }
 
 #[cfg(test)]

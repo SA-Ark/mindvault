@@ -41,6 +41,8 @@ pub mod embed;
 pub mod eval;
 pub mod fuse;
 pub mod model;
+pub mod seed;
+pub mod server;
 pub mod store;
 
 pub use model::{Memory, ScoredMemory};

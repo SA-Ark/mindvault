@@ -11,6 +11,42 @@ semantic + keyword recall. It treats retrieval quality as an engineering discipl
 staged and explainable, every scoring constant earns its place, and the repo ships the **evaluation
 harness** used to prove changes help before they ship.
 
+## ▶ Try it live
+
+**[mindvault.chakrakali.com](https://mindvault.chakrakali.com)** — an interactive playground (no signup).
+
+Type a query and watch the six-stage hybrid pipeline run in real time. Every result is tagged with the
+**signals that surfaced it** — `semantic`, `keyword`, `entity`, or `graph` — and an expandable panel shows
+each retrieval leg's raw ranking. Ask *"how does rank fusion work?"* and you'll see the canonical hit come
+back at #1 **and its caveat ride in at #2 on a graph edge** — the difference between "found the fact" and
+"found the fact *and its caveat*". You can ingest your own memories and watch the knowledge graph grow.
+
+The demo runs the *exact* recall code in this repo against a live PostgreSQL+pgvector, seeded with a small
+hand-curated corpus. It is **fully self-hosted** — a single Rust binary (axum) serving both the API and the
+UI, with a deterministic, dependency-free embedder so it needs nothing beyond Postgres (no embedding SaaS).
+
+### Run the demo yourself
+
+```bash
+# 1. PostgreSQL with pgvector
+docker run -d -e POSTGRES_PASSWORD=pw -p 5440:5432 pgvector/pgvector:pg17
+
+# 2. the demo server (schema + demo corpus apply automatically on first boot)
+DATABASE_URL=postgres://postgres:pw@localhost:5440/postgres \
+  cargo run --release --bin mindvault-server
+# → open http://localhost:3930
+```
+
+To use a real semantic embedder instead of the built-in deterministic one, point at any self-hosted
+OpenAI-compatible `/embeddings` endpoint:
+
+```bash
+MINDVAULT_EMBED_ENDPOINT=http://localhost:8080/v1/embeddings \
+MINDVAULT_EMBED_MODEL=bge-small-en MINDVAULT_EMBED_DIM=384 \
+DATABASE_URL=postgres://... cargo run --release --bin mindvault-server
+```
+
+
 ## The recall pipeline
 
 ```
@@ -125,6 +161,9 @@ let hits = store.hybrid_recall("what gates deploys?", &query_emb, 5).await?;
 | `src/model.rs` | Memory model + typed time-decay policy |
 | `src/embed.rs` | `Embedder` trait, HTTP + deterministic hash embedders |
 | `src/eval.rs` + `src/bin/eval.rs` | The retrieval eval harness |
+| `src/server.rs` + `src/bin/server.rs` | HTTP API (axum) + the live playground demo |
+| `src/seed.rs` | Hand-curated demo corpus, graph edges, and knowledge graph |
+| `static/index.html` | The playground UI (zero third-party JS; served by the binary) |
 | `tests/integration_pg.rs` | End-to-end scenarios against real pgvector (CI service container) |
 
 ## License

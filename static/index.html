@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MindVault — RAG + Knowledge-Graph Memory Engine</title>
+<style>
+  :root{
+    --bg:#0c0f17; --panel:#141a26; --panel2:#1b2333; --line:#26304a;
+    --text:#e8edf6; --muted:#93a0bd; --accent:#5b8cff; --accent2:#7ad7c4;
+    --semantic:#5b8cff; --keyword:#f0a35e; --entity:#c084fc; --graph:#7ad7c4;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(1200px 600px at 70% -10%, #16203a 0%, var(--bg) 55%);
+    color:var(--text); font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh; padding:0 0 80px;
+  }
+  header{padding:36px 24px 10px; max-width:1180px; margin:0 auto}
+  h1{font-size:30px; margin:0 0 6px; letter-spacing:-.5px}
+  h1 .v{color:var(--accent)}
+  .tag{color:var(--muted); font-size:17px; margin:0 0 18px; max-width:760px}
+  .pills{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px}
+  .pill{background:var(--panel2); border:1px solid var(--line); color:var(--muted);
+    padding:5px 11px; border-radius:999px; font-size:13px}
+  .pill b{color:var(--text)}
+  main{max-width:1180px; margin:0 auto; padding:0 24px;
+    display:grid; grid-template-columns:1.15fr .85fr; gap:20px}
+  @media (max-width:920px){ main{grid-template-columns:1fr} }
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:20px; margin-top:20px}
+  .card h2{font-size:18px; margin:0 0 4px}
+  .card p.sub{color:var(--muted); font-size:14px; margin:0 0 14px}
+  label{display:block; font-size:14px; color:var(--muted); margin:12px 0 5px}
+  input[type=text], textarea, select{
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:11px 13px; font:inherit; font-size:16px}
+  textarea{min-height:74px; resize:vertical}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  .row > *{flex:1; min-width:120px}
+  button{cursor:pointer; border:none; border-radius:10px; padding:11px 18px;
+    font:inherit; font-size:15px; font-weight:600; color:#fff;
+    background:linear-gradient(135deg,var(--accent),#4066d6)}
+  button.ghost{background:var(--panel2); border:1px solid var(--line); color:var(--text); font-weight:500}
+  button:active{transform:translateY(1px)}
+  .hits{margin-top:8px; display:flex; flex-direction:column; gap:10px}
+  .hit{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:13px 15px}
+  .hit .top{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px}
+  .hit .content{font-size:16px}
+  .score{font-variant-numeric:tabular-nums; color:var(--accent2); font-weight:700; font-size:15px}
+  .sig{display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; margin-right:5px; font-weight:600}
+  .sig.semantic{background:rgba(91,140,255,.18); color:#9cb8ff}
+  .sig.keyword{background:rgba(240,163,94,.18); color:#f3bd86}
+  .sig.entity{background:rgba(192,132,252,.18); color:#d6b3ff}
+  .sig.graph{background:rgba(122,215,196,.18); color:#a3e6d6}
+  .mtype{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px}
+  details{margin-top:14px; border-top:1px dashed var(--line); padding-top:10px}
+  summary{cursor:pointer; color:var(--muted); font-size:14px}
+  .leg{margin:8px 0}
+  .leg h4{margin:6px 0 4px; font-size:13px; text-transform:uppercase; letter-spacing:.6px}
+  .leg.semantic h4{color:var(--semantic)} .leg.keyword h4{color:var(--keyword)} .leg.entity h4{color:var(--entity)}
+  .leg ol{margin:0; padding-left:20px; font-size:14px; color:var(--muted)}
+  .leg li{margin:2px 0}
+  canvas{width:100%; height:420px; background:var(--panel2); border-radius:12px; border:1px solid var(--line)}
+  .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:10px}
+  .legend i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:5px; vertical-align:middle}
+  .stat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:6px}
+  .stat{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:12px}
+  .stat .n{font-size:24px; font-weight:700}
+  .stat .l{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px}
+  .chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px}
+  .chip{background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:13px; cursor:pointer}
+  .chip:hover{border-color:var(--accent)}
+  .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    background:var(--panel2); border:1px solid var(--line); padding:11px 18px; border-radius:10px;
+    font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none}
+  .toast.show{opacity:1}
+  footer{max-width:1180px; margin:30px auto 0; padding:0 24px; color:var(--muted); font-size:14px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mind<span class="v">Vault</span></h1>
+  <p class="tag">A self-hosted <b>RAG + knowledge-graph memory engine</b> on PostgreSQL/pgvector.
+    Type a query and watch the six-stage hybrid pipeline — semantic ANN, keyword FTS, RRF fusion,
+    graph-neighbor boost, entity boost, and typed time decay — surface the right memory <i>and</i> its caveat.</p>
+  <div class="pills">
+    <span class="pill">pgvector cosine</span>
+    <span class="pill">Postgres FTS</span>
+    <span class="pill">RRF fusion (k=60)</span>
+    <span class="pill">graph-neighbor boost</span>
+    <span class="pill">knowledge graph</span>
+    <span class="pill">typed time decay</span>
+  </div>
+  <div class="pills"><span class="pill" id="embedder-pill">embedder: …</span></div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Try a recall</h2>
+      <p class="sub">Runs the full hybrid pipeline. Each hit is tagged with the signals that surfaced it.</p>
+      <textarea id="q" placeholder="e.g. how does rank fusion work?">how does rank fusion work?</textarea>
+      <div class="chips" id="examples"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="run">Recall</button>
+        <button class="ghost" id="k-toggle" style="flex:0 0 auto">top-k: 5</button>
+      </div>
+      <div class="hits" id="hits"></div>
+      <details id="explain-wrap" style="display:none">
+        <summary>How the pipeline got here (per-leg explain)</summary>
+        <div id="explain"></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Ingest a memory</h2>
+      <p class="sub">Content-addressed (SHA-256). Identical content upserts instead of duplicating.</p>
+      <textarea id="ingest-content" placeholder="Drop a fact, lesson, note…"></textarea>
+      <div class="row">
+        <div>
+          <label for="ingest-type">type</label>
+          <select id="ingest-type">
+            <option value="fact">fact</option>
+            <option value="lesson">lesson</option>
+            <option value="architecture">architecture</option>
+            <option value="decision">decision</option>
+            <option value="note">note</option>
+            <option value="workflow">workflow</option>
+          </select>
+        </div>
+        <div>
+          <label for="ingest-imp">importance (0–1)</label>
+          <input type="text" id="ingest-imp" value="0.5" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="ingest-btn">Ingest</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Memory + knowledge graph</h2>
+      <p class="sub">Memory nodes (by type) and KG entities. Edges drive the neighbor &amp; entity boosts.</p>
+      <canvas id="graph" width="560" height="420"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--semantic)"></i>fact / arch</span>
+        <span><i style="background:var(--keyword)"></i>note / workflow</span>
+        <span><i style="background:var(--graph)"></i>lesson / decision</span>
+        <span><i style="background:var(--entity)"></i>KG entity</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Store</h2>
+      <p class="sub">Live counts from the running engine.</p>
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="s-mem">–</div><div class="l">memories</div></div>
+        <div class="stat"><div class="n" id="s-edges">–</div><div class="l">graph edges</div></div>
+        <div class="stat"><div class="n" id="s-ent">–</div><div class="l">entities</div></div>
+      </div>
+      <div class="chips" id="typechips" style="margin-top:14px"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="ghost" id="seed-btn">Re-seed demo corpus</button>
+        <button class="ghost" id="refresh-btn">Refresh</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Single self-hosted Rust binary (axum) over PostgreSQL/pgvector. No third-party SaaS.
+  Source &amp; docs: <a href="https://github.com/SA-Ark/mindvault">github.com/SA-Ark/mindvault</a>.
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+let topK = 5;
+const EXAMPLES = [
+  "how does rank fusion work?",
+  "what fades stale memories?",
+  "pgvector cosine distance",
+  "deploy gating on tests",
+  "borrow checker data races"
+];
+const TYPE_COLOR = {
+  fact:'#5b8cff', architecture:'#5b8cff', reference:'#5b8cff',
+  note:'#f0a35e', observation:'#f0a35e', workflow:'#f0a35e', log_summary:'#f0a35e',
+  lesson:'#7ad7c4', decision:'#7ad7c4',
+  entity:'#c084fc'
+};
+
+// Safe DOM builder: text is always set via textContent, never via HTML strings.
+function el(tag, opts, kids){
+  const n = document.createElement(tag);
+  if(opts){ if(opts.class) n.className=opts.class; if(opts.text!=null) n.textContent=opts.text;
+    if(opts.style) n.setAttribute('style',opts.style); }
+  (kids||[]).forEach(k=>n.appendChild(k));
+  return n;
+}
+function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+function trunc(s){ return s.length>70?s.slice(0,70)+'…':s; }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+async function api(path, opts){ const r = await fetch(path, opts); if(!r.ok){ const e=await r.json().catch(()=>({error:r.statusText})); throw new Error(e.error||r.statusText); } return r.json(); }
+
+function renderExamples(){
+  const box=$('#examples'); clear(box);
+  EXAMPLES.forEach(e=>{ const c=el('span',{class:'chip',text:e}); c.onclick=()=>{ $('#q').value=e; runRecall(); }; box.appendChild(c); });
+}
+
+async function runRecall(){
+  const query = $('#q').value.trim(); if(!query) return;
+  const box=$('#hits'); clear(box); box.appendChild(el('div',{class:'hit',text:'running pipeline…'}));
+  try{
+    const r = await api('/api/recall',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,k:topK})});
+    clear(box);
+    if(!r.hits.length){ box.appendChild(el('div',{class:'hit',text:'no hits'})); }
+    r.hits.forEach(h=>{
+      const top=el('div',{class:'top'},[ el('span',{class:'mtype',text:h.memory_type||'untyped'}), el('span',{class:'score',text:h.score.toFixed(4)}) ]);
+      const sigs=el('div',{style:'margin-top:8px'});
+      h.signals.forEach(s=>sigs.appendChild(el('span',{class:'sig '+s,text:s})));
+      box.appendChild(el('div',{class:'hit'},[ top, el('div',{class:'content',text:h.content}), sigs ]));
+    });
+    renderExplain(r.explain);
+  }catch(e){ clear(box); box.appendChild(el('div',{class:'hit',text:'error: '+e.message})); }
+}
+
+function legBlock(cls,title,items,withScore){
+  const ol=el('ol');
+  if(!items.length){ ol.appendChild(el('li',{style:'list-style:none;margin-left:-14px',text:'— none —'})); }
+  items.forEach(it=>{
+    const li=el('li',{text:trunc(it.content)});
+    if(withScore && it.native_score!=null){ li.appendChild(document.createTextNode(' ')); li.appendChild(el('span',{style:'opacity:.8',text:it.native_score.toFixed(3)})); }
+    ol.appendChild(li);
+  });
+  return el('div',{class:'leg '+cls},[ el('h4',{text:title}), ol ]);
+}
+function renderExplain(ex){
+  if(!ex) return;
+  $('#explain-wrap').style.display='block';
+  const box=$('#explain'); clear(box);
+  box.appendChild(legBlock('semantic','① semantic leg (cosine)', ex.semantic_top, true));
+  box.appendChild(legBlock('keyword','② keyword leg (ts_rank)', ex.keyword_top, true));
+  box.appendChild(legBlock('entity','⑤ entity-matched memories', ex.entity_matches.map(c=>({content:c})), false));
+}
+
+async function refreshStats(){
+  try{
+    const s = await api('/api/stats');
+    $('#s-mem').textContent = s.memories;
+    $('#s-edges').textContent = s.edges;
+    $('#s-ent').textContent = s.entities;
+    const pill=$('#embedder-pill'); clear(pill);
+    pill.appendChild(document.createTextNode('embedder: '));
+    pill.appendChild(el('b',{text:s.embedder}));
+    pill.appendChild(document.createTextNode(' · '+s.embed_dim+'d'));
+    const tc=$('#typechips'); clear(tc);
+    s.types.forEach(t=>tc.appendChild(el('span',{class:'chip',style:'cursor:default',text:t.name+' · '+t.count})));
+  }catch(e){}
+}
+
+let graphData={nodes:[],edges:[]}, sim=null;
+async function loadGraph(){ try{ graphData = await api('/api/graph'); layoutGraph(); }catch(e){} }
+function layoutGraph(){
+  const cv=$('#graph'), w=cv.width, h=cv.height;
+  const N=graphData.nodes; const idx={}; N.forEach((n,i)=>{idx[n.id]=i; n.x=w/2+Math.cos(i)*180*Math.random(); n.y=h/2+Math.sin(i)*150*Math.random(); n.vx=0; n.vy=0;});
+  const E=graphData.edges.filter(e=>idx[e.source]!=null&&idx[e.target]!=null);
+  if(sim) clearInterval(sim); let ticks=0;
+  sim=setInterval(()=>{
+    for(let i=0;i<N.length;i++){ for(let j=i+1;j<N.length;j++){
+      let dx=N[i].x-N[j].x, dy=N[i].y-N[j].y, d=Math.hypot(dx,dy)||1, f=900/(d*d);
+      dx/=d; dy/=d; N[i].vx+=dx*f; N[i].vy+=dy*f; N[j].vx-=dx*f; N[j].vy-=dy*f; }}
+    E.forEach(e=>{ const a=N[idx[e.source]],b=N[idx[e.target]];
+      let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,f=(d-90)*0.01; dx/=d;dy/=d;
+      a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f; });
+    N.forEach(n=>{ n.vx+=(w/2-n.x)*0.002; n.vy+=(h/2-n.y)*0.002;
+      n.x+=Math.max(-6,Math.min(6,n.vx))*0.85; n.y+=Math.max(-6,Math.min(6,n.vy))*0.85;
+      n.vx*=0.85; n.vy*=0.85; n.x=Math.max(16,Math.min(w-16,n.x)); n.y=Math.max(16,Math.min(h-16,n.y)); });
+    drawGraph(N,E,idx); if(++ticks>240){clearInterval(sim);}
+  },33);
+}
+function drawGraph(N,E,idx){
+  const cv=$('#graph'), c=cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
+  E.forEach(e=>{ const a=N[idx[e.source]],b=N[idx[e.target]];
+    c.strokeStyle = e.kind==='relation'?'rgba(192,132,252,.5)': e.kind==='entity_link'?'rgba(192,132,252,.25)':'rgba(122,215,196,.35)';
+    c.lineWidth = e.kind==='relation'?2:1; c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke(); });
+  N.forEach(n=>{ const col = n.kind==='entity'?TYPE_COLOR.entity:(TYPE_COLOR[n.memory_type]||'#8aa');
+    const r = n.kind==='entity'?9:6;
+    c.fillStyle=col; c.beginPath(); c.arc(n.x,n.y,r,0,7); c.fill();
+    if(n.kind==='entity'){ c.fillStyle='#e8edf6'; c.font='12px system-ui'; c.fillText(n.label,n.x+11,n.y+4); }});
+}
+
+$('#run').onclick=runRecall;
+$('#q').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)) runRecall(); });
+$('#k-toggle').onclick=()=>{ topK = topK>=10?3:topK+2; $('#k-toggle').textContent='top-k: '+topK; };
+$('#ingest-btn').onclick=async()=>{
+  const content=$('#ingest-content').value.trim(); if(!content){toast('enter some content');return;}
+  try{
+    await api('/api/ingest',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({content,memory_type:$('#ingest-type').value,importance:parseFloat($('#ingest-imp').value)||0.5})});
+    $('#ingest-content').value=''; toast('ingested'); refreshStats(); loadGraph();
+  }catch(e){ toast('error: '+e.message); }
+};
+$('#seed-btn').onclick=async()=>{ try{ const r=await api('/api/seed',{method:'POST'}); toast('seeded — '+r.memories+' memories'); refreshStats(); loadGraph(); }catch(e){toast(e.message);} };
+$('#refresh-btn').onclick=()=>{ refreshStats(); loadGraph(); };
+
+renderExamples(); refreshStats(); loadGraph(); runRecall();
+</script>
+</body>
+</html>
