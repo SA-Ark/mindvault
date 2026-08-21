@@ -6,7 +6,7 @@
 
 **RAG + knowledge-graph memory engine on PostgreSQL/pgvector — hybrid recall that is measured, not vibed.**
 
-MindVault is the packaged core of a production memory system that serves **68,000+ memories** with hybrid
+MindVault is the packaged core of a production memory system that serves **180,000+ memories** with hybrid
 semantic + keyword recall. It treats retrieval quality as an engineering discipline: the recall pipeline is
 staged and explainable, every scoring constant earns its place, and the repo ships the **evaluation
 harness** used to prove changes help before they ship.
